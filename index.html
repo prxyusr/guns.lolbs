@@ -1,0 +1,687 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>ProxyUser // bio-link</title>
+  <!-- Tailwind CSS -->
+  <script src="https://cdn.tailwindcss.com"></script>
+  <!-- Google Fonts: Inter & JetBrains Mono for terminal/badge styling -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;700&display=swap" rel="stylesheet">
+  <!-- Font Awesome for crisp social & UI icons -->
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.1/css/all.min.css">
+  <!-- Tone.js for procedural ambient synth audio (zero external MP3 links required, guaranteed playback) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+
+  <script>
+    tailwind.config = {
+      theme: {
+        extend: {
+          fontFamily: {
+            sans: ['Inter', 'sans-serif'],
+            mono: ['JetBrains Mono', 'monospace'],
+          },
+          colors: {
+            obsidian: '#09090b',
+            violetGlow: '#8b5cf6',
+            purpleNeon: '#a855f7',
+          },
+          animation: {
+            'pulse-slow': 'pulse 3s cubic-bezier(0.4, 0, 0.6, 1) infinite',
+            'spin-slow': 'spin 8s linear infinite',
+            'float': 'float 6s ease-in-out infinite',
+          },
+          keyframes: {
+            float: {
+              '0%, 100%': { transform: 'translateY(0px)' },
+              '50%': { transform: 'translateY(-6px)' },
+            }
+          }
+        }
+      }
+    }
+  </script>
+
+  <style>
+    /* Custom scrollbar & base dark aesthetic */
+    body {
+      background-color: #09090b;
+      color: #ffffff;
+      overflow-x: hidden;
+      user-select: none;
+    }
+
+    /* Subtle noise grain overlay for authentic dark aesthetic */
+    .noise-overlay {
+      position: fixed;
+      inset: 0;
+      pointer-events: none;
+      z-index: 5;
+      opacity: 0.035;
+      background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noiseFilter'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='3' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noiseFilter)'/%3E%3C/svg%3E");
+    }
+
+    /* Glowing text shadow for display name */
+    .neon-text {
+      text-shadow: 0 0 12px rgba(168, 85, 247, 0.75), 0 0 28px rgba(139, 92, 246, 0.45);
+    }
+
+    /* 3D Perspective wrapper */
+    .tilt-wrapper {
+      perspective: 1200px;
+    }
+
+    /* Frosted glass card with smooth 3D transform transition */
+    .glass-card {
+      background: rgba(18, 18, 23, 0.62);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid rgba(255, 255, 255, 0.09);
+      box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.85), 0 0 40px rgba(139, 92, 246, 0.12);
+      transform-style: preserve-3d;
+      transition: transform 0.15s ease-out, box-shadow 0.3s ease;
+    }
+
+    /* Custom range slider styling for volume control */
+    input[type="range"] {
+      -webkit-appearance: none;
+      appearance: none;
+      background: rgba(255, 255, 255, 0.15);
+      height: 4px;
+      border-radius: 999px;
+      outline: none;
+    }
+
+    input[type="range"]::-webkit-slider-thumb {
+      -webkit-appearance: none;
+      appearance: none;
+      width: 12px;
+      height: 12px;
+      border-radius: 50%;
+      background: #a855f7;
+      box-shadow: 0 0 10px #a855f7;
+      cursor: pointer;
+      transition: transform 0.15s ease;
+    }
+
+    input[type="range"]::-webkit-slider-thumb:hover {
+      transform: scale(1.25);
+    }
+
+    /* Blinking terminal cursor */
+    .cursor-blink {
+      animation: blink 1s step-end infinite;
+    }
+
+    @keyframes blink {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0; }
+    }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center relative selection:bg-purple-500/30 selection:text-purple-200">
+
+  <!-- Ambient Particle / Snowfall Canvas -->
+  <canvas id="particle-canvas" class="fixed inset-0 w-full h-full pointer-events-none z-0"></canvas>
+
+  <!-- Subtle Radial Violet Ambient Orbs -->
+  <div class="fixed top-[-15%] left-[-10%] w-[45vw] h-[45vw] rounded-full bg-purple-600/15 blur-[130px] pointer-events-none z-0"></div>
+  <div class="fixed bottom-[-15%] right-[-10%] w-[45vw] h-[45vw] rounded-full bg-violet-700/15 blur-[130px] pointer-events-none z-0"></div>
+
+  <!-- Film Grain Texture -->
+  <div class="noise-overlay"></div>
+
+  <!-- CLICK-TO-ENTER SPLASH OVERLAY -->
+  <div id="enter-overlay" class="fixed inset-0 z-50 flex flex-col items-center justify-center bg-[#09090b]/90 backdrop-blur-xl cursor-pointer transition-opacity duration-700">
+    <div class="text-center px-6">
+      <p class="font-mono text-sm sm:text-base tracking-[0.25em] uppercase text-white/90 animate-pulse-slow drop-shadow-[0_0_12px_rgba(168,85,247,0.8)]">
+        [ click anywhere to enter ]
+      </p>
+      <p class="font-mono text-xs text-zinc-500 mt-3 tracking-wider">
+        enables spatial audio &amp; visualizers
+      </p>
+    </div>
+  </div>
+
+  <!-- FLOATING TOP-LEFT AUDIO WIDGET -->
+  <div id="audio-pill" class="fixed top-4 left-4 sm:top-6 sm:left-6 z-30 flex items-center gap-3 px-3.5 py-2 rounded-full bg-zinc-900/75 backdrop-blur-md border border-zinc-800/90 shadow-lg transition-all duration-300 hover:border-purple-500/50">
+    <button id="play-pause-btn" aria-label="Toggle Ambient Audio" class="w-7 h-7 rounded-full bg-purple-500/20 hover:bg-purple-500/35 text-purple-300 flex items-center justify-center transition-colors">
+      <i id="play-pause-icon" class="fa-solid fa-play text-xs"></i>
+    </button>
+    <div class="flex items-center gap-2">
+      <i id="volume-icon" class="fa-solid fa-volume-high text-zinc-400 text-xs w-4"></i>
+      <input id="volume-slider" type="range" min="0" max="100" value="65" aria-label="Audio Volume" class="w-16 sm:w-20">
+    </div>
+    <span class="hidden sm:inline-block font-mono text-[11px] text-zinc-400 border-l border-zinc-800 pl-2.5">
+      midnight_synth.wav
+    </span>
+  </div>
+
+  <!-- CUSTOM TOAST NOTIFICATION (Replaces alert) -->
+  <div id="toast-box" class="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none opacity-0 translate-y-3 transition-all duration-300">
+    <div class="px-4 py-2 rounded-full bg-zinc-900/95 border border-purple-500/50 text-xs font-mono text-purple-200 shadow-[0_0_20px_rgba(139,92,246,0.35)] flex items-center gap-2">
+      <i class="fa-solid fa-check text-purple-400"></i>
+      <span id="toast-message">Copied to clipboard!</span>
+    </div>
+  </div>
+
+  <!-- MAIN BIO-LINK CARD CONTAINER -->
+  <main class="relative z-10 w-full max-w-[440px] px-4 py-16 sm:py-12 tilt-wrapper">
+    <div id="tilt-card" class="glass-card rounded-3xl p-6 sm:p-8 relative overflow-hidden">
+      
+      <!-- Subtle Top Inner Edge Highlight -->
+      <div class="absolute inset-x-0 top-0 h-px bg-gradient-to-r from-transparent via-purple-400/50 to-transparent"></div>
+
+      <!-- PROFILE HEADER SECTION -->
+      <div class="flex flex-col items-center text-center">
+        
+        <!-- Avatar with Animated Violet Aura Ring & Online Dot -->
+        <div class="relative mb-4 group">
+          <!-- Outer rotating gradient halo -->
+          <div class="absolute -inset-1 rounded-full bg-gradient-to-tr from-violet-600 via-fuchsia-500 to-purple-400 opacity-75 blur-sm group-hover:opacity-100 group-hover:blur-md transition-all duration-500 animate-spin-slow"></div>
+          
+          <div class="relative w-24 h-24 sm:w-28 sm:h-28 rounded-full p-1 bg-[#09090b]">
+            <img 
+              src="https://images.unsplash.com/photo-1618005182384-a83a8bd57fbe?auto=format&fit=crop&w=300&q=80" 
+              onerror="this.onerror=null;this.src='https://placehold.co/300x300/18181b/a855f7?text=PU';"
+              alt="Profile Avatar" 
+              class="w-full h-full object-cover rounded-full"
+            >
+          </div>
+
+          <!-- Status Indicator Dot -->
+          <span title="Online / Active" class="absolute bottom-1 right-1 w-4 h-4 rounded-full bg-emerald-400 border-[3px] border-[#09090b] shadow-[0_0_10px_#34d399]"></span>
+        </div>
+
+        <!-- Display Name + Verified Badge -->
+        <div class="flex items-center justify-center gap-2">
+          <h1 class="text-2xl sm:text-3xl font-extrabold tracking-tight text-white neon-text">
+            ProxyUser
+          </h1>
+          <span title="Verified Developer" class="inline-flex items-center justify-center w-5 h-5 rounded-full bg-purple-500/20 border border-purple-400/40 text-purple-300 text-[10px]">
+            <i class="fa-solid fa-bolt"></i>
+          </span>
+        </div>
+
+        <!-- Handle & Location Metadata -->
+        <div class="flex items-center gap-3 mt-1.5 text-xs font-mono text-zinc-400">
+          <span>@prxyusr</span>
+          <span class="text-zinc-700">•</span>
+          <span class="flex items-center gap-1">
+            <i class="fa-solid fa-location-dot text-purple-400 text-[10px]"></i>
+            cyberspace
+          </span>
+        </div>
+
+        <!-- CUSTOM BADGE PILLS (Coding & Scripting Focused) -->
+        <div class="flex flex-wrap items-center justify-center gap-1.5 mt-3.5">
+          <span class="px-2.5 py-0.5 rounded-full text-[11px] font-mono bg-purple-500/15 border border-purple-500/35 text-purple-200 flex items-center gap-1.5 shadow-[0_0_12px_rgba(139,92,246,0.2)]">
+            <i class="fa-solid fa-code text-purple-400 text-[10px]"></i> developer
+          </span>
+          <span class="px-2.5 py-0.5 rounded-full text-[11px] font-mono bg-zinc-800/80 border border-zinc-700/80 text-zinc-300 flex items-center gap-1.5">
+            <i class="fa-solid fa-terminal text-violet-400 text-[10px]"></i> scripter
+          </span>
+          <span class="px-2.5 py-0.5 rounded-full text-[11px] font-mono bg-zinc-800/80 border border-zinc-700/80 text-zinc-300 flex items-center gap-1.5">
+            <i class="fa-solid fa-layer-group text-fuchsia-400 text-[10px]"></i> full-stack / lua
+          </span>
+        </div>
+
+        <!-- TERMINAL LINK-SPAMMER & STATUS BOX -->
+        <div class="w-full mt-5 px-3.5 py-2.5 rounded-xl bg-black/50 border border-zinc-800/90 text-left font-mono text-xs sm:text-[13px] text-zinc-300 flex items-center gap-2">
+          <span class="text-purple-400 select-none">&gt;</span>
+          <span id="typewriter-text" class="truncate text-purple-200/90"></span><span class="text-purple-400 cursor-blink">_</span>
+        </div>
+      </div>
+
+      <!-- DIVIDER -->
+      <div class="my-5 h-px w-full bg-gradient-to-r from-transparent via-zinc-800 to-transparent"></div>
+
+      <!-- SOCIAL LINK PILLS -->
+      <div class="space-y-2.5">
+        
+        <!-- Link 1: GitHub -->
+        <a href="https://github.com/prxyusr" target="_blank" rel="noopener noreferrer" 
+           class="group flex items-center justify-between w-full px-4 py-3 rounded-2xl bg-zinc-900/60 hover:bg-zinc-900/95 border border-zinc-800/90 hover:border-purple-500/60 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_0_20px_rgba(139,92,246,0.25)]">
+          <div class="flex items-center gap-3.5">
+            <div class="w-9 h-9 rounded-xl bg-zinc-800/90 group-hover:bg-purple-500/20 border border-zinc-700/60 group-hover:border-purple-400/40 flex items-center justify-center text-zinc-200 group-hover:text-purple-300 transition-colors">
+              <i class="fa-brands fa-github text-lg"></i>
+            </div>
+            <div class="text-left">
+              <div class="text-sm font-semibold text-white group-hover:text-purple-200 transition-colors">GitHub</div>
+              <div class="text-[11px] font-mono text-zinc-500">@prxyusr // repos &amp; scripts</div>
+            </div>
+          </div>
+          <i class="fa-solid fa-arrow-up-right-from-square text-xs text-zinc-600 group-hover:text-purple-400 transition-colors"></i>
+        </a>
+
+        <!-- Link 2: Instagram -->
+        <a href="https://www.instagram.com/ngltrey/" target="_blank" rel="noopener noreferrer" 
+           class="group flex items-center justify-between w-full px-4 py-3 rounded-2xl bg-zinc-900/60 hover:bg-zinc-900/95 border border-zinc-800/90 hover:border-purple-500/60 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_0_20px_rgba(139,92,246,0.25)]">
+          <div class="flex items-center gap-3.5">
+            <div class="w-9 h-9 rounded-xl bg-zinc-800/90 group-hover:bg-purple-500/20 border border-zinc-700/60 group-hover:border-purple-400/40 flex items-center justify-center text-zinc-200 group-hover:text-purple-300 transition-colors">
+              <i class="fa-brands fa-instagram text-lg"></i>
+            </div>
+            <div class="text-left">
+              <div class="text-sm font-semibold text-white group-hover:text-purple-200 transition-colors">Instagram</div>
+              <div class="text-[11px] font-mono text-zinc-500">@ngltrey</div>
+            </div>
+          </div>
+          <i class="fa-solid fa-arrow-up-right-from-square text-xs text-zinc-600 group-hover:text-purple-400 transition-colors"></i>
+        </a>
+
+        <!-- Link 3: Discord (Click to Copy Username) -->
+        <button type="button" onclick="copyDiscordTag('d3adawak3')"
+           class="group flex items-center justify-between w-full px-4 py-3 rounded-2xl bg-zinc-900/60 hover:bg-zinc-900/95 border border-zinc-800/90 hover:border-purple-500/60 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_0_20px_rgba(139,92,246,0.25)]">
+          <div class="flex items-center gap-3.5">
+            <div class="w-9 h-9 rounded-xl bg-zinc-800/90 group-hover:bg-purple-500/20 border border-zinc-700/60 group-hover:border-purple-400/40 flex items-center justify-center text-zinc-200 group-hover:text-purple-300 transition-colors">
+              <i class="fa-brands fa-discord text-lg"></i>
+            </div>
+            <div class="text-left">
+              <div class="text-sm font-semibold text-white group-hover:text-purple-200 transition-colors">Discord</div>
+              <div class="text-[11px] font-mono text-zinc-500">d3adawak3 // click to copy</div>
+            </div>
+          </div>
+          <span class="px-2 py-0.5 rounded-md bg-zinc-800/80 font-mono text-[10px] text-zinc-400 group-hover:text-purple-300 border border-zinc-700/60">
+            copy
+          </span>
+        </button>
+
+        <!-- Link 4: Spotify -->
+        <a href="https://open.spotify.com/user/31atnhojxy2hhcly37abbimutp4e?si=8446bb61e2884b2a" target="_blank" rel="noopener noreferrer" 
+           class="group flex items-center justify-between w-full px-4 py-3 rounded-2xl bg-zinc-900/60 hover:bg-zinc-900/95 border border-zinc-800/90 hover:border-purple-500/60 transition-all duration-300 hover:-translate-y-0.5 hover:shadow-[0_0_20px_rgba(139,92,246,0.25)]">
+          <div class="flex items-center gap-3.5">
+            <div class="w-9 h-9 rounded-xl bg-zinc-800/90 group-hover:bg-purple-500/20 border border-zinc-700/60 group-hover:border-purple-400/40 flex items-center justify-center text-zinc-200 group-hover:text-purple-300 transition-colors">
+              <i class="fa-brands fa-spotify text-lg"></i>
+            </div>
+            <div class="text-left">
+              <div class="text-sm font-semibold text-white group-hover:text-purple-200 transition-colors">Spotify</div>
+              <div class="text-[11px] font-mono text-zinc-500">late night coding playlists</div>
+            </div>
+          </div>
+          <i class="fa-solid fa-arrow-up-right-from-square text-xs text-zinc-600 group-hover:text-purple-400 transition-colors"></i>
+        </a>
+
+      </div>
+
+      <!-- FOOTER STATS BAR (Profile Views & UID) -->
+      <div class="mt-6 pt-4 border-t border-zinc-800/80 flex items-center justify-between text-[11px] font-mono text-zinc-500">
+        <div class="flex items-center gap-1.5" title="Total Profile Views">
+          <i class="fa-regular fa-eye text-purple-400"></i>
+          <span id="view-counter">---</span>
+        </div>
+        <div class="flex items-center gap-1.5">
+          <span class="w-1.5 h-1.5 rounded-full bg-purple-500 animate-ping"></span>
+          <span>UID #001</span>
+        </div>
+      </div>
+
+    </div>
+  </main>
+
+  <script>
+    /**
+     * 1. AMBIENT PARTICLE / SNOWFALL CANVAS
+     * Renders glowing violet and white drifting particles with subtle mouse parallax.
+     */
+    (function initParticles() {
+      const canvas = document.getElementById('particle-canvas');
+      const ctx = canvas.getContext('2d');
+      let width, height, particles = [];
+      let mouse = { x: -9999, y: -9999 };
+
+      function resize() {
+        width = canvas.width = window.innerWidth;
+        height = canvas.height = window.innerHeight;
+      }
+
+      window.addEventListener('resize', resize);
+      resize();
+
+      window.addEventListener('mousemove', (e) => {
+        mouse.x = e.clientX;
+        mouse.y = e.clientY;
+      });
+
+      const particleCount = Math.min(75, Math.floor((width * height) / 16000));
+
+      for (let i = 0; i < particleCount; i++) {
+        const isViolet = Math.random() > 0.45;
+        particles.push({
+          x: Math.random() * width,
+          y: Math.random() * height,
+          r: Math.random() * 2 + 0.6,
+          vx: (Math.random() - 0.5) * 0.35,
+          vy: Math.random() * 0.55 + 0.15,
+          alpha: Math.random() * 0.55 + 0.2,
+          color: isViolet ? '168, 85, 247' : '255, 255, 255'
+        });
+      }
+
+      function animate() {
+        ctx.clearRect(0, 0, width, height);
+
+        for (let p of particles) {
+          p.x += p.vx;
+          p.y += p.vy;
+
+          // Wrap around screen edges
+          if (p.y > height) { p.y = -5; p.x = Math.random() * width; }
+          if (p.x > width) p.x = 0;
+          if (p.x < 0) p.x = width;
+
+          // Subtle repulsion near cursor
+          const dx = p.x - mouse.x;
+          const dy = p.y - mouse.y;
+          const dist = Math.sqrt(dx * dx + dy * dy);
+          if (dist < 100) {
+            p.x += (dx / dist) * 0.8;
+            p.y += (dy / dist) * 0.8;
+          }
+
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.r, 0, Math.PI * 2);
+          ctx.fillStyle = `rgba(${p.color}, ${p.alpha})`;
+          ctx.shadowBlur = p.color.startsWith('168') ? 8 : 0;
+          ctx.shadowColor = '#a855f7';
+          ctx.fill();
+        }
+
+        requestAnimationFrame(animate);
+      }
+
+      animate();
+    })();
+
+    /**
+     * 2. BROWSER ADDRESS BAR URL-SPAMMER & TAB TITLE ANIMATOR
+     * Rapidly cycles hash-based routes (#/...) in the browser URL input bar via history.replaceState
+     * (safe for GitHub Pages page refreshes—never 404s) and updates the terminal bar + tab title.
+     */
+    (function initUrlAndTitleSpammer() {
+      const spamLinks = [
+        "#/proxyuser",
+        "#/prxyusr",
+        "#/github.com/prxyusr",
+        "#/instagram.com/ngltrey",
+        "#/discord/d3adawak3",
+        "#/open.spotify.com/prxyusr",
+        "#/dev/luau",
+        "#/sec/0x00",
+        "#/guns.lol/proxyuser",
+        "#/root@prxyusr:~#"
+      ];
+
+      const terminalTarget = document.getElementById('typewriter-text');
+      let linkIdx = 0;
+
+      // Rapidly spam links in the browser address bar & terminal bar
+      setInterval(() => {
+        const currentSlug = spamLinks[linkIdx % spamLinks.length];
+        linkIdx++;
+
+        try {
+          if (window.history && typeof window.history.replaceState === 'function') {
+            window.history.replaceState(null, '', currentSlug);
+          }
+        } catch (err) {
+          // Silently ignore in sandboxed srcdoc iframes where replaceState is restricted
+        }
+
+        if (terminalTarget) {
+          terminalTarget.textContent = `https://prxyusr.github.io/${currentSlug}`;
+        }
+      }, 150);
+
+      // Classic guns.lol style typing browser tab title
+      const titleFrames = [
+        "@",
+        "@P",
+        "@Pr",
+        "@Pro",
+        "@Prox",
+        "@Proxy",
+        "@ProxyU",
+        "@ProxyUs",
+        "@ProxyUse",
+        "@ProxyUser",
+        "@ProxyUser // dev",
+        "@ProxyUser",
+        "@ProxyUse",
+        "@ProxyUs",
+        "@ProxyU",
+        "@Proxy",
+        "@Prox",
+        "@Pro",
+        "@Pr",
+        "@P"
+      ];
+      let titleIdx = 0;
+      setInterval(() => {
+        document.title = titleFrames[titleIdx % titleFrames.length];
+        titleIdx++;
+      }, 260);
+    })();
+
+    /**
+     * 3. SUBTLE 3D TILT HOVER EFFECT ON GLASS CARD
+     * Responds smoothly to pointer movement on desktop while staying stable on touch devices.
+     */
+    (function initCardTilt() {
+      const card = document.getElementById('tilt-card');
+      const wrapper = card.parentElement;
+
+      wrapper.addEventListener('mousemove', (e) => {
+        if (window.innerWidth < 640) return; // Disable tilt on small touch screens
+        const rect = card.getBoundingClientRect();
+        const x = e.clientX - rect.left;
+        const y = e.clientY - rect.top;
+
+        const centerX = rect.width / 2;
+        const centerY = rect.height / 2;
+
+        const rotateX = ((y - centerY) / centerY) * -6;
+        const rotateY = ((x - centerX) / centerX) * 6;
+
+        card.style.transform = `rotateX(${rotateX.toFixed(2)}deg) rotateY(${rotateY.toFixed(2)}deg)`;
+      });
+
+      wrapper.addEventListener('mouseleave', () => {
+        card.style.transform = 'rotateX(0deg) rotateY(0deg)';
+      });
+    })();
+
+    /**
+     * 4. AMBIENT SYNTH AUDIO ENGINE & CLICK-TO-ENTER UNLOCK
+     * Uses Tone.js to generate a lush dark ambient synth chord loop with zero external audio files.
+     * (You can also swap this out for an <audio src="song.mp3"> tag if you upload an MP3 to GitHub!)
+     */
+    let audioInitialized = false;
+    let isPlaying = false;
+    let synthLoop = null;
+    let masterVol = null;
+
+    async function startAmbientAudio() {
+      try {
+        await Tone.start();
+
+        if (!audioInitialized) {
+          masterVol = new Tone.Volume(-10).toDestination();
+
+          const reverb = new Tone.Reverb({
+            decay: 6,
+            wet: 0.65
+          }).connect(masterVol);
+
+          const filter = new Tone.Filter(900, "lowpass").connect(reverb);
+
+          const polySynth = new Tone.PolySynth(Tone.Synth, {
+            oscillator: { type: "triangle" },
+            envelope: {
+              attack: 1.5,
+              decay: 1.2,
+              sustain: 0.6,
+              release: 3.0
+            }
+          }).connect(filter);
+
+          // Lush dark minor-9th chord progression
+          const chords = [
+            ["C3", "G3", "Bb3", "D4", "Eb4"],
+            ["Ab2", "Eb3", "G3", "C4", "D4"],
+            ["F2", "C3", "Eb3", "G3", "Ab3"],
+            ["G2", "D3", "F3", "Bb3", "D4"]
+          ];
+
+          let step = 0;
+          synthLoop = new Tone.Loop((time) => {
+            polySynth.triggerAttackRelease(chords[step % chords.length], "2m", time);
+            step++;
+          }, "2m").start(0);
+
+          Tone.Transport.bpm.value = 72;
+          audioInitialized = true;
+        }
+
+        Tone.Transport.start();
+        isPlaying = true;
+        updateAudioUI();
+      } catch (err) {
+        console.warn("Audio initialization prevented:", err);
+      }
+    }
+
+    function toggleAudio() {
+      if (!audioInitialized) {
+        startAmbientAudio();
+        return;
+      }
+
+      if (isPlaying) {
+        Tone.Transport.pause();
+        isPlaying = false;
+      } else {
+        Tone.Transport.start();
+        isPlaying = true;
+      }
+      updateAudioUI();
+    }
+
+    function updateAudioUI() {
+      const icon = document.getElementById('play-pause-icon');
+      icon.className = isPlaying ? 'fa-solid fa-pause text-xs' : 'fa-solid fa-play text-xs';
+    }
+
+    // Click-to-enter overlay dismiss
+    const overlay = document.getElementById('enter-overlay');
+    overlay.addEventListener('click', () => {
+      overlay.style.opacity = '0';
+      setTimeout(() => {
+        overlay.style.display = 'none';
+      }, 700);
+      startAmbientAudio();
+    });
+
+    // Play/Pause button
+    document.getElementById('play-pause-btn').addEventListener('click', (e) => {
+      e.stopPropagation();
+      toggleAudio();
+    });
+
+    // Volume slider
+    const volumeSlider = document.getElementById('volume-slider');
+    const volumeIcon = document.getElementById('volume-icon');
+
+    volumeSlider.addEventListener('input', (e) => {
+      const val = parseInt(e.target.value, 10);
+      if (masterVol) {
+        // Map 0-100 to decibels (-45dB to 0dB)
+        masterVol.volume.value = val === 0 ? -Infinity : (val / 100) * 35 - 35;
+      }
+
+      if (val === 0) {
+        volumeIcon.className = 'fa-solid fa-volume-xmark text-zinc-500 text-xs w-4';
+      } else if (val < 50) {
+        volumeIcon.className = 'fa-solid fa-volume-low text-zinc-400 text-xs w-4';
+      } else {
+        volumeIcon.className = 'fa-solid fa-volume-high text-zinc-400 text-xs w-4';
+      }
+    });
+
+    /**
+     * 5. CLIPBOARD & TOAST HELPER
+     * Uses document.execCommand('copy') for reliable clipboard copying inside iframes & browsers.
+     */
+    let toastTimeout;
+    function showToast(msg) {
+      const toast = document.getElementById('toast-box');
+      const toastMsg = document.getElementById('toast-message');
+      toastMsg.textContent = msg;
+
+      toast.classList.remove('opacity-0', 'translate-y-3');
+      toast.classList.add('opacity-100', 'translate-y-0');
+
+      clearTimeout(toastTimeout);
+      toastTimeout = setTimeout(() => {
+        toast.classList.remove('opacity-100', 'translate-y-0');
+        toast.classList.add('opacity-0', 'translate-y-3');
+      }, 2400);
+    }
+
+    function copyDiscordTag(tag) {
+      const tempInput = document.createElement('input');
+      tempInput.value = tag;
+      document.body.appendChild(tempInput);
+      tempInput.select();
+      try {
+        document.execCommand('copy');
+        showToast(`Copied ${tag} to clipboard!`);
+      } catch (err) {
+        showToast(`Discord: ${tag}`);
+      }
+      document.body.removeChild(tempInput);
+    }
+
+    /**
+     * 6. REAL PERSISTENT VIEW COUNTER (CounterAPI with resilient localStorage fallback)
+     * Increments globally on real GitHub Pages visits and falls back cleanly if offline/sandboxed.
+     */
+    (async function initViewCounter() {
+      const counterEl = document.getElementById('view-counter');
+      const localKey = 'proxyuser_bio_views_v1';
+      let localCount = parseInt(localStorage.getItem(localKey) || '0', 10);
+      if (isNaN(localCount) || localCount < 0) localCount = 0;
+
+      // Increment local count immediately so offline/sandboxed views still count
+      localCount += 1;
+      localStorage.setItem(localKey, localCount.toString());
+
+      try {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 3500);
+
+        const res = await fetch('https://api.counterapi.dev/v1/proxyuser-prxyusr-bio/visits/up', {
+          signal: controller.signal
+        });
+        clearTimeout(timeoutId);
+
+        if (res.ok) {
+          const data = await res.json();
+          const remoteCount = Number(data && data.count);
+          if (!isNaN(remoteCount) && remoteCount > 0) {
+            const finalCount = Math.max(remoteCount, localCount);
+            localStorage.setItem(localKey, finalCount.toString());
+            counterEl.textContent = finalCount.toLocaleString();
+            return;
+          }
+        }
+      } catch (err) {
+        // Fallback silently to local persistent count when offline or blocked
+      }
+
+      counterEl.textContent = localCount.toLocaleString();
+    })();
+  </script>
+</body>
+</html>
